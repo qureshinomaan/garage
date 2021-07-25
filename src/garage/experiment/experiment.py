@@ -316,12 +316,13 @@ class ExperimentTemplate:
         text_log_file = os.path.join(log_dir, 'debug.log')
         variant_log_file = os.path.join(log_dir, 'variant.json')
         metadata_log_file = os.path.join(log_dir, 'metadata.json')
-
-        dump_json(variant_log_file, kwargs)
-        git_root_path, metadata = get_metadata()
-        dump_json(metadata_log_file, metadata)
-        if git_root_path and options['archive_launch_repo']:
-            make_launcher_archive(git_root_path=git_root_path, log_dir=log_dir)
+        
+        
+        # dump_json(variant_log_file, kwargs)
+        # git_root_path, metadata = get_metadata()
+        # dump_json(metadata_log_file, metadata)
+        # if git_root_path and options['archive_launch_repo']:
+        #     make_launcher_archive(git_root_path=git_root_path, log_dir=log_dir)
 
         logger.add_output(dowel.TextOutput(text_log_file))
         logger.add_output(dowel.CsvOutput(tabular_log_file))

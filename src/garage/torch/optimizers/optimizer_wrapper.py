@@ -23,12 +23,13 @@ class OptimizerWrapper:
                  optimizer,
                  module,
                  max_optimization_epochs=1,
-                 minibatch_size=None):
-        self._optimizer = make_optimizer(optimizer, module=module)
+                 minibatch_size=None,
+                 different_lr=False):
+        self._optimizer = make_optimizer(optimizer, module=module, different_lr=different_lr)
         self._max_optimization_epochs = max_optimization_epochs
         self._minibatch_size = minibatch_size
 
-    def get_minibatch(self, *inputs):
+    def get_minibatch(self, *inputs, shuffle=True):
         r"""Yields a batch of inputs.
 
         Notes: P is the size of minibatch (self._minibatch_size)
@@ -45,7 +46,7 @@ class OptimizerWrapper:
         batch_dataset = BatchDataset(inputs, self._minibatch_size)
 
         for _ in range(self._max_optimization_epochs):
-            for dataset in batch_dataset.iterate():
+            for dataset in batch_dataset.iterate(update=shuffle):
                 yield dataset
 
     def zero_grad(self):

@@ -108,15 +108,33 @@ class DefaultWorker(Worker):
         if self._eps_length < self._max_episode_length:
             a, agent_info = self.agent.get_action(self._prev_obs)
             es = self.env.step(a)
-            self._observations.append(self._prev_obs)
-            self._env_steps.append(es)
-            for k, v in agent_info.items():
-                self._agent_infos[k].append(v)
-            self._eps_length += 1
+            
+            
+            if type(es) is not tuple:
+                self._observations.append(self._prev_obs)
+                self._env_steps.append(es)
+                for k, v in agent_info.items():
+                    self._agent_infos[k].append(v)
+                self._eps_length += 1
 
-            if not es.terminal:
-                self._prev_obs = es.observation
-                return False
+                if not es.terminal:
+                    self._prev_obs = es.observation
+                    return False
+            elif type(es) is tuple:
+                
+                for i in range(len(es)):
+                    self._observations.append(self._prev_obs)
+                    self._env_steps.append(es[i])
+                    for k, v in agent_info.items():
+                        self._agent_infos[k].append(v[i*4:(i+1)*4])
+                    self._eps_length += 1
+
+                    if not es[i].terminal:
+                        self._prev_obs = es[i].observation
+                    
+                if not es[len(es)-1].terminal:
+                    return False
+                
         self._lengths.append(self._eps_length)
         self._last_observations.append(self._prev_obs)
         return True
@@ -162,6 +180,8 @@ class DefaultWorker(Worker):
 
         lengths = self._lengths
         self._lengths = []
+        
+        env_infos['task_id'] = np.array([0 for i in range(len(env_infos['in_place_reward']))])
         return EpisodeBatch(env_spec=self.env.spec,
                             episode_infos=episode_infos,
                             observations=np.asarray(observations),

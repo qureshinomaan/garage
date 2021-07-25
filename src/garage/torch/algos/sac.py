@@ -1,4 +1,5 @@
 """This modules creates a sac model in PyTorch."""
+# yapf: disable
 from collections import deque
 import copy
 
@@ -7,11 +8,9 @@ import numpy as np
 import torch
 import torch.nn.functional as F
 
-# yapf: disable
 from garage import log_performance, obtain_evaluation_episodes, StepType
 from garage.np.algos import RLAlgorithm
-from garage.torch import as_torch_dict, global_device, state_dict_to
-from garage.torch._functions import list_to_tensor, zero_optim_grads
+from garage.torch import as_torch_dict, global_device
 
 # yapf: enable
 
@@ -177,12 +176,12 @@ class SAC(RLAlgorithm):
             else:
                 self._target_entropy = -np.prod(
                     self.env_spec.action_space.shape).item()
-            self._log_alpha = list_to_tensor([self._initial_log_entropy
-                                              ]).requires_grad_()
+            self._log_alpha = torch.Tensor([self._initial_log_entropy
+                                            ]).requires_grad_()
             self._alpha_optimizer = optimizer([self._log_alpha],
                                               lr=self._policy_lr)
         else:
-            self._log_alpha = list_to_tensor([self._fixed_alpha]).log()
+            self._log_alpha = torch.Tensor([self._fixed_alpha]).log()
         self.episode_rewards = deque(maxlen=30)
 
     def train(self, trainer):
@@ -472,11 +471,11 @@ class SAC(RLAlgorithm):
         obs = samples_data['observation']
         qf1_loss, qf2_loss = self._critic_objective(samples_data)
 
-        zero_optim_grads(self._qf1_optimizer)
+        self._qf1_optimizer.zero_grad()
         qf1_loss.backward()
         self._qf1_optimizer.step()
 
-        zero_optim_grads(self._qf2_optimizer)
+        self._qf2_optimizer.zero_grad()
         qf2_loss.backward()
         self._qf2_optimizer.step()
 
@@ -490,7 +489,8 @@ class SAC(RLAlgorithm):
                                             log_pi_new_actions)
         policy_loss += self._caps_regularization_objective(
             action_dists, samples_data)
-        zero_optim_grads(self._policy_optimizer)
+        # zero_optim_grads(self._policy_optimizer)
+        self._policy_optimizer.zero_grad()
         policy_loss.backward()
 
         self._policy_optimizer.step()
@@ -498,7 +498,7 @@ class SAC(RLAlgorithm):
         if self._use_automatic_entropy_tuning:
             alpha_loss = self._temperature_objective(log_pi_new_actions,
                                                      samples_data)
-            zero_optim_grads(self._alpha_optimizer)
+            self._alpha_optimizer.zero_grad()
             alpha_loss.backward()
             self._alpha_optimizer.step()
 
@@ -574,18 +574,10 @@ class SAC(RLAlgorithm):
         for net in self.networks:
             net.to(device)
         if not self._use_automatic_entropy_tuning:
-            self._log_alpha = list_to_tensor([self._fixed_alpha
-                                              ]).log().to(device)
+            self._log_alpha = torch.Tensor([self._fixed_alpha
+                                            ]).log().to(device)
         else:
-            self._log_alpha = self._log_alpha.detach().to(
-                device).requires_grad_()
+            self._log_alpha = torch.Tensor([self._initial_log_entropy
+                                            ]).to(device).requires_grad_()
             self._alpha_optimizer = self._optimizer([self._log_alpha],
                                                     lr=self._policy_lr)
-            self._alpha_optimizer.load_state_dict(
-                state_dict_to(self._alpha_optimizer.state_dict(), device))
-            self._qf1_optimizer.load_state_dict(
-                state_dict_to(self._qf1_optimizer.state_dict(), device))
-            self._qf2_optimizer.load_state_dict(
-                state_dict_to(self._qf2_optimizer.state_dict(), device))
-            self._policy_optimizer.load_state_dict(
-                state_dict_to(self._policy_optimizer.state_dict(), device))

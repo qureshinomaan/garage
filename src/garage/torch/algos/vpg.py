@@ -11,7 +11,6 @@ from garage import log_performance
 from garage.np import discount_cumsum
 from garage.np.algos import RLAlgorithm
 from garage.torch import compute_advantages, filter_valids
-from garage.torch._functions import np_to_torch, zero_optim_grads
 from garage.torch.optimizers import OptimizerWrapper
 
 
@@ -134,7 +133,7 @@ class VPG(RLAlgorithm):
         """
         return self._discount
 
-    def _train_once(self, itr, eps):
+    def _train_once(self, itr, eps, shuffle=True):
         """Train the algorithm once.
 
         Args:
@@ -145,9 +144,9 @@ class VPG(RLAlgorithm):
             numpy.float64: Calculated mean value of undiscounted returns.
 
         """
-        obs = np_to_torch(eps.padded_observations)
-        rewards = np_to_torch(eps.padded_rewards)
-        returns = np_to_torch(
+        obs = torch.Tensor(eps.padded_observations)
+        rewards = torch.Tensor(eps.padded_rewards)
+        returns = torch.Tensor(
             np.stack([
                 discount_cumsum(reward, self.discount)
                 for reward in eps.padded_rewards
@@ -156,13 +155,13 @@ class VPG(RLAlgorithm):
         with torch.no_grad():
             baselines = self._value_function(obs)
 
-        if self._maximum_entropy:
-            policy_entropies = self._compute_policy_entropy(obs)
-            rewards += self._policy_ent_coeff * policy_entropies
+        # if self._maximum_entropy:
+        #     policy_entropies = self._compute_policy_entropy(obs)
+        #     rewards += self._policy_ent_coeff * policy_entropies
 
-        obs_flat = np_to_torch(eps.observations)
-        actions_flat = np_to_torch(eps.actions)
-        rewards_flat = np_to_torch(eps.rewards)
+        obs_flat = torch.Tensor(eps.observations)
+        actions_flat = torch.Tensor(eps.actions)
+        rewards_flat = torch.Tensor(eps.rewards)
         returns_flat = torch.cat(filter_valids(returns, valids))
         advs_flat = self._compute_advantage(rewards, valids, baselines)
 
@@ -174,7 +173,7 @@ class VPG(RLAlgorithm):
             kl_before = self._compute_kl_constraint(obs)
 
         self._train(obs_flat, actions_flat, rewards_flat, returns_flat,
-                    advs_flat)
+                    advs_flat, shuffle=shuffle)
 
         with torch.no_grad():
             policy_loss_after = self._compute_loss_with_adv(
@@ -206,7 +205,7 @@ class VPG(RLAlgorithm):
                                                discount=self._discount)
         return np.mean(undiscounted_returns)
 
-    def train(self, trainer):
+    def train(self, trainer, shuffle=True):
         """Obtain samplers and start actual training for each epoch.
 
         Args:
@@ -223,12 +222,12 @@ class VPG(RLAlgorithm):
         for _ in trainer.step_epochs():
             for _ in range(self._n_samples):
                 eps = trainer.obtain_episodes(trainer.step_itr)
-                last_return = self._train_once(trainer.step_itr, eps)
+                last_return = self._train_once(trainer.step_itr, eps, shuffle=shuffle)
                 trainer.step_itr += 1
 
         return last_return
 
-    def _train(self, obs, actions, rewards, returns, advs):
+    def _train(self, obs, actions, rewards, returns, advs, shuffle=True):
         r"""Train the policy and value function with minibatch.
 
         Args:
@@ -243,7 +242,7 @@ class VPG(RLAlgorithm):
 
         """
         for dataset in self._policy_optimizer.get_minibatch(
-                obs, actions, rewards, advs):
+                obs, actions, rewards, advs, shuffle=shuffle):
             self._train_policy(*dataset)
         for dataset in self._vf_optimizer.get_minibatch(obs, returns):
             self._train_value_function(*dataset)
@@ -265,10 +264,10 @@ class VPG(RLAlgorithm):
             torch.Tensor: Calculated mean scalar value of policy loss (float).
 
         """
-        # pylint: disable=protected-access
-        zero_optim_grads(self._policy_optimizer._optimizer)
+        self._policy_optimizer.zero_grad()
         loss = self._compute_loss_with_adv(obs, actions, rewards, advantages)
         loss.backward()
+        torch.nn.utils.clip_grad_norm_(self.policy.parameters(), 0.5)
         self._policy_optimizer.step()
 
         return loss
@@ -287,8 +286,7 @@ class VPG(RLAlgorithm):
                 (float).
 
         """
-        # pylint: disable=protected-access
-        zero_optim_grads(self._vf_optimizer._optimizer)
+        self._vf_optimizer.zero_grad()
         loss = self._value_function.compute_loss(obs, returns)
         loss.backward()
         self._vf_optimizer.step()
@@ -398,9 +396,11 @@ class VPG(RLAlgorithm):
                 (float).
 
         """
+        
+        
         with torch.no_grad():
             old_dist = self._old_policy(obs)[0]
-
+        
         new_dist = self.policy(obs)[0]
 
         kl_constraint = torch.distributions.kl.kl_divergence(

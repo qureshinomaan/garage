@@ -22,7 +22,7 @@ class _Default:  # pylint: disable=too-few-public-methods
         self.val = val
 
 
-def make_optimizer(optimizer_type, module=None, **kwargs):
+def make_optimizer(optimizer_type, module=None, different_lr=False, **kwargs):
     """Create an optimizer for pyTorch & tensorflow algos.
 
     Args:
@@ -51,7 +51,33 @@ def make_optimizer(optimizer_type, module=None, **kwargs):
                 raise ValueError('Should not specify {} and explicit \
                     optimizer args at the same time'.format(name))
         if module is not None:
-            return opt_type(module.parameters(), **opt_args)
+            if different_lr == False:
+                return opt_type([{'params':module.parameters()}], **opt_args)
+            else :
+                eigen_list = []
+                for i in range(100):
+                    eigen_list.append('_module.eigen_vector.'+str(i))
+                    eigen_list.append('_module.eigen_value.'+str(i))
+                eigen_params = list(filter(lambda kv: kv[0] in eigen_list, module.named_parameters()))
+                print()
+                print()
+                print()
+                print("!!!!!change in _functions depending the number of lds please!!!!!!")
+                print("!!!!!change in _functions depending the number of lds please!!!!!!")
+                print("!!!!!change in _functions depending the number of lds please!!!!!!")
+                print("!!!!!change in _functions depending the number of lds please!!!!!!")
+                print("!!!!!change in _functions depending the number of lds please!!!!!!")
+                for x in module.named_parameters() :
+                    print(x)
+                print()
+                print()
+                print()
+                
+                params = list(filter(lambda kv: kv[0] not in eigen_list, module.named_parameters()))
+                params = [i[1] for i in params]
+                eigen_params = [i[1] for i in eigen_params]
+                return opt_type([{'params':params}, {'params':eigen_params, 'lr':9.0e-3}], **opt_args)
+                
         else:
             return opt_type(**opt_args)
 

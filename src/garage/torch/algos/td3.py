@@ -11,7 +11,6 @@ from garage import (_Default, log_performance, make_optimizer,
 from garage.np.algos import RLAlgorithm
 from garage.torch import (as_torch_dict, global_device, soft_update_model,
                           torch_to_np)
-from garage.torch._functions import zero_optim_grads
 
 
 class TD3(RLAlgorithm):
@@ -313,8 +312,8 @@ class TD3(RLAlgorithm):
             current_Q2, target_Q)
 
         # Optimize critic
-        zero_optim_grads(self._qf_optimizer_1)
-        zero_optim_grads(self._qf_optimizer_2)
+        self._qf_optimizer_1.zero_grad()
+        self._qf_optimizer_2.zero_grad()
         critic_loss.backward()
         self._qf_optimizer_1.step()
         self._qf_optimizer_2.step()
@@ -326,7 +325,7 @@ class TD3(RLAlgorithm):
             self._actor_loss = -self._qf_1(inputs, actions).mean()
 
             # Optimize actor
-            zero_optim_grads(self._policy_optimizer)
+            self._policy_optimizer.zero_grad()
             self._actor_loss.backward()
             self._policy_optimizer.step()
 

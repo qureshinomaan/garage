@@ -16,7 +16,6 @@ from garage.np.algos import MetaRLAlgorithm
 from garage.replay_buffer import PathBuffer
 from garage.sampler import DefaultWorker
 from garage.torch import global_device
-from garage.torch._functions import np_to_torch, zero_optim_grads
 from garage.torch.embeddings import MLPEncoder
 from garage.torch.policies import ContextConditionedPolicy
 
@@ -355,14 +354,14 @@ class PEARL(MetaRLAlgorithm):
             target_v_values = self.target_vf(next_obs, task_z)
 
         # KL constraint on z if probabilistic
-        zero_optim_grads(self.context_optimizer)
+        self.context_optimizer.zero_grad()
         if self._use_information_bottleneck:
             kl_div = self._policy.compute_kl_div()
             kl_loss = self._kl_lambda * kl_div
             kl_loss.backward(retain_graph=True)
 
-        zero_optim_grads(self.qf1_optimizer)
-        zero_optim_grads(self.qf2_optimizer)
+        self.qf1_optimizer.zero_grad()
+        self.qf2_optimizer.zero_grad()
 
         rewards_flat = rewards.view(self._batch_size * num_tasks, -1)
         rewards_flat = rewards_flat * self._reward_scale
@@ -385,7 +384,7 @@ class PEARL(MetaRLAlgorithm):
         # optimize vf
         v_target = min_q - log_pi
         vf_loss = self.vf_criterion(v_pred, v_target.detach())
-        zero_optim_grads(self.vf_optimizer)
+        self.vf_optimizer.zero_grad()
         vf_loss.backward()
         self.vf_optimizer.step()
         self._update_target_network()
@@ -403,7 +402,7 @@ class PEARL(MetaRLAlgorithm):
                            pre_activation_reg_loss)
         policy_loss = policy_loss + policy_reg_loss
 
-        zero_optim_grads(self._policy_optimizer)
+        self._policy_optimizer.zero_grad()
         policy_loss.backward()
         self._policy_optimizer.step()
 
@@ -499,11 +498,11 @@ class PEARL(MetaRLAlgorithm):
                 no = np.vstack((no, batch['next_observations'][np.newaxis]))
                 d = np.vstack((d, batch['dones'][np.newaxis]))
 
-        o = np_to_torch(o)
-        a = np_to_torch(a)
-        r = np_to_torch(r)
-        no = np_to_torch(no)
-        d = np_to_torch(d)
+        o = torch.as_tensor(o, device=global_device()).float()
+        a = torch.as_tensor(a, device=global_device()).float()
+        r = torch.as_tensor(r, device=global_device()).float()
+        no = torch.as_tensor(no, device=global_device()).float()
+        d = torch.as_tensor(d, device=global_device()).float()
 
         return o, a, r, no, d
 
@@ -542,8 +541,8 @@ class PEARL(MetaRLAlgorithm):
             else:
                 final_context = np.vstack((final_context, context[np.newaxis]))
 
-        final_context = np_to_torch(final_context)
-
+        final_context = torch.as_tensor(final_context,
+                                        device=global_device()).float()
         if len(indices) == 1:
             final_context = final_context.unsqueeze(0)
 
@@ -615,7 +614,7 @@ class PEARL(MetaRLAlgorithm):
         a = exploration_episodes.actions
         r = exploration_episodes.rewards.reshape(total_steps, 1)
         ctxt = np.hstack((o, a, r)).reshape(1, total_steps, -1)
-        context = np_to_torch(ctxt)
+        context = torch.as_tensor(ctxt, device=global_device()).float()
         self._policy.infer_posterior(context)
 
         return self._policy

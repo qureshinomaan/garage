@@ -22,27 +22,6 @@ _DEVICE = None
 _GPU_ID = 0
 
 
-def zero_optim_grads(optim, set_to_none=True):
-    """Sets the gradient of all optimized tensors to None.
-
-    This is an optimization alternative to calling `optimizer.zero_grad()`
-
-    Args:
-        optim (torch.nn.Optimizer): The optimizer instance
-            to zero parameter gradients.
-        set_to_none (bool): Set gradients to None
-            instead of calling `zero_grad()`which
-            sets to 0.
-    """
-    if not set_to_none:
-        optim.zero_grad()
-        return
-
-    for group in optim.param_groups:
-        for param in group['params']:
-            param.grad = None
-
-
 def compute_advantages(discount, gae_lambda, max_episode_length, baselines,
                        rewards):
     """Calculate advantages.
@@ -153,7 +132,7 @@ def filter_valids(tensor, valids):
     return [tensor[i][:valid] for i, valid in enumerate(valids)]
 
 
-def np_to_torch(array):
+def as_torch(array):
     """Numpy arrays to PyTorch tensors.
 
     Args:
@@ -163,24 +142,7 @@ def np_to_torch(array):
         torch.Tensor: float tensor on the global device.
 
     """
-    tensor = torch.from_numpy(array)
-
-    if tensor.dtype != torch.float32:
-        tensor = tensor.float()
-
-    return tensor.to(global_device())
-
-
-def list_to_tensor(data):
-    """Convert a list to a PyTorch tensor.
-
-    Args:
-        data (list): Data to convert to tensor
-
-    Returns:
-        torch.Tensor: A float tensor
-    """
-    return torch.as_tensor(data, dtype=torch.float32, device=global_device())
+    return torch.as_tensor(array).float().to(global_device())
 
 
 def as_torch_dict(array_dict):
@@ -196,7 +158,7 @@ def as_torch_dict(array_dict):
 
     """
     for key, value in array_dict.items():
-        array_dict[key] = np_to_torch(value)
+        array_dict[key] = as_torch(value)
     return array_dict
 
 
@@ -363,24 +325,6 @@ def product_of_gaussians(mus, sigmas_squared):
     sigma_squared = 1. / torch.sum(torch.reciprocal(sigmas_squared), dim=0)
     mu = sigma_squared * torch.sum(mus / sigmas_squared, dim=0)
     return mu, sigma_squared
-
-
-def state_dict_to(state_dict, device):
-    """Move optimizer to a specified device.
-
-    Args:
-        state_dict (dict): state dictionary to be moved
-        device (str): ID of GPU or CPU.
-
-    Returns:
-        dict: state dictionary moved to device
-    """
-    for param in state_dict.values():
-        if isinstance(param, torch.Tensor):
-            param.data = param.data.to(device)
-        elif isinstance(param, dict):
-            state_dict_to(param, device)
-    return state_dict
 
 
 # pylint: disable=W0223

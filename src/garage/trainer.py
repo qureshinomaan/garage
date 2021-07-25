@@ -11,7 +11,13 @@ from garage.experiment.deterministic import get_seed, set_seed
 from garage.experiment.experiment import dump_json
 from garage.experiment.snapshotter import Snapshotter
 
-tf = None
+# pylint: disable=no-name-in-module
+
+tf = False
+try:
+    import tensorflow as tf
+except ImportError:
+    pass
 
 
 class ExperimentStats:
@@ -357,7 +363,8 @@ class Trainer:
               batch_size=None,
               plot=False,
               store_episodes=False,
-              pause_for_plot=False):
+              pause_for_plot=False,
+              shuffle=True):
         """Start training.
 
         Args:
@@ -390,10 +397,10 @@ class Trainer:
         self._start_worker()
 
         log_dir = self._snapshotter.snapshot_dir
+
         summary_file = os.path.join(log_dir, 'experiment.json')
         dump_json(summary_file, self)
-
-        average_return = self._algo.train(self)
+        average_return = self._algo.train(self, shuffle=shuffle)
         self._shutdown_worker()
 
         return average_return
@@ -530,7 +537,6 @@ class NotSetupError(Exception):
     """Raise when an experiment is about to run without setup."""
 
 
-# pylint: disable=no-member
 class TFTrainer(Trainer):
     """This class implements a trainer for TensorFlow algorithms.
 
@@ -585,11 +591,6 @@ class TFTrainer(Trainer):
     """
 
     def __init__(self, snapshot_config, sess=None):
-        # pylint: disable=import-outside-toplevel
-        import tensorflow
-        # pylint: disable=global-statement
-        global tf
-        tf = tensorflow
         super().__init__(snapshot_config=snapshot_config)
         self.sess = sess or tf.compat.v1.Session()
         self.sess_entered = False
@@ -663,3 +664,17 @@ class TFTrainer(Trainer):
                     v for v in tf.compat.v1.global_variables()
                     if v.name.split(':')[0] in uninited_set
                 ]))
+
+
+class __FakeTFTrainer:
+    # noqa: E501; pylint: disable=missing-param-doc,too-few-public-methods,no-method-argument
+    """Raises an ImportError for environments without TensorFlow."""
+
+    def __init__(*args, **kwargs):
+        raise ImportError(
+            'TFTrainer requires TensorFlow. To use it, please install '
+            'TensorFlow.')
+
+
+if not tf:
+    TFTrainer = __FakeTFTrainer  # noqa: F811

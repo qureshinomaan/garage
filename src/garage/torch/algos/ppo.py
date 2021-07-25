@@ -3,6 +3,8 @@ import torch
 
 from garage.torch.algos import VPG
 from garage.torch.optimizers import OptimizerWrapper
+from torch.distributions import Normal
+from torch.distributions.independent import Independent
 
 
 class PPO(VPG):
@@ -60,7 +62,9 @@ class PPO(VPG):
                  policy_ent_coeff=0.0,
                  use_softplus_entropy=False,
                  stop_entropy_gradient=False,
-                 entropy_method='no_entropy'):
+                 entropy_method='no_entropy',
+                 action_dim = 4,
+                 isnormal=True):
 
         if policy_optimizer is None:
             policy_optimizer = OptimizerWrapper(
@@ -114,6 +118,7 @@ class PPO(VPG):
         # Compute constraint
         with torch.no_grad():
             old_ll = self._old_policy(obs)[0].log_prob(actions)
+        
         new_ll = self.policy(obs)[0].log_prob(actions)
 
         likelihood_ratio = (new_ll - old_ll).exp()
@@ -128,5 +133,5 @@ class PPO(VPG):
 
         # Calculate surrotate clip
         surrogate_clip = likelihood_ratio_clip * advantages
-
+        
         return torch.min(surrogate, surrogate_clip)

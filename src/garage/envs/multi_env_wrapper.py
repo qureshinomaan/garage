@@ -203,6 +203,8 @@ class MultiEnvWrapper(Wrapper):
             EnvStep: The environment step resulting from the action.
 
         """
+        if type(action) == tuple:
+            action = action[0]
         es = self._env.step(action)
 
         if self._mode == 'add-onehot':

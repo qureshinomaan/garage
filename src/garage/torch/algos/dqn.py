@@ -10,8 +10,7 @@ import torch.nn.functional as F
 from garage import _Default, log_performance, make_optimizer
 from garage._functions import obtain_evaluation_episodes
 from garage.np.algos import RLAlgorithm
-from garage.torch import global_device, np_to_torch
-from garage.torch._functions import zero_optim_grads
+from garage.torch import as_torch, global_device
 
 
 class DQN(RLAlgorithm):
@@ -244,12 +243,12 @@ class DQN(RLAlgorithm):
             qval: Q-value predicted by the Q-network.
 
         """
-        observations = np_to_torch(timesteps.observations)
-        rewards = np_to_torch(timesteps.rewards).reshape(-1, 1)
+        observations = as_torch(timesteps.observations)
+        rewards = as_torch(timesteps.rewards).reshape(-1, 1)
         rewards *= self._reward_scale
-        actions = np_to_torch(timesteps.actions)
-        next_observations = np_to_torch(timesteps.next_observations)
-        terminals = np_to_torch(timesteps.terminals).reshape(-1, 1)
+        actions = as_torch(timesteps.actions)
+        next_observations = as_torch(timesteps.next_observations)
+        terminals = as_torch(timesteps.terminals).reshape(-1, 1)
 
         next_inputs = next_observations
         inputs = observations
@@ -280,7 +279,7 @@ class DQN(RLAlgorithm):
         selected_qs = torch.sum(qvals * actions, axis=1)
         qval_loss = F.smooth_l1_loss(selected_qs, y_target)
 
-        zero_optim_grads(self._qf_optimizer)
+        self._qf_optimizer.zero_grad()
         qval_loss.backward()
 
         # optionally clip the gradients

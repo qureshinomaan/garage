@@ -146,7 +146,7 @@ class GymEnv(Environment):
 
         self._render_modes = self._env.metadata['render.modes']
 
-        self._step_cnt = None
+        self.step_cnt = None
         self._visualize = False
 
         self._action_space = akro.from_gym(self._env.action_space)
@@ -193,7 +193,7 @@ class GymEnv(Environment):
 
         """
         first_obs = self._env.reset()
-        self._step_cnt = 0
+        self.step_cnt = 0
         self._env_info = None
 
         return first_obs, dict()
@@ -214,7 +214,7 @@ class GymEnv(Environment):
                 env_info keys.
 
         """
-        if self._step_cnt is None:
+        if self.step_cnt is None:
             raise RuntimeError('reset() must be called before step()!')
 
         observation, reward, done, info = self._env.step(action)
@@ -223,10 +223,9 @@ class GymEnv(Environment):
             self._env.render(mode='human')
 
         reward = float(reward) if not isinstance(reward, float) else reward
-        self._step_cnt += 1
-
+        self.step_cnt += 1
         step_type = StepType.get_step_type(
-            step_cnt=self._step_cnt,
+            step_cnt=self.step_cnt,
             max_episode_length=self._max_episode_length,
             done=done)
 
@@ -247,7 +246,7 @@ class GymEnv(Environment):
             info['GymEnv.TimeLimitTerminated'] = False
 
         if step_type in (StepType.TERMINAL, StepType.TIMEOUT):
-            self._step_cnt = None
+            self.step_cnt = None
 
         # check that env_infos are consistent
         if not self._env_info:
@@ -280,7 +279,7 @@ class GymEnv(Environment):
             object: the return value for render, depending on each env.
 
         """
-        self._validate_render_mode(mode)
+        # self._validate_render_mode(mode)
         return self._env.render(mode)
 
     def visualize(self):

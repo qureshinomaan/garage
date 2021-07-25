@@ -34,7 +34,7 @@ class Snapshotter:
                  snapshot_dir=os.path.join(os.getcwd(),
                                            'data/local/experiment'),
                  snapshot_mode='last',
-                 snapshot_gap=1):
+                 snapshot_gap=1000):
         self._snapshot_dir = snapshot_dir
         self._snapshot_mode = snapshot_mode
         self._snapshot_gap = snapshot_gap

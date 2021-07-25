@@ -11,7 +11,6 @@ from garage import (_Default, EpisodeBatch, log_multitask_performance,
                     make_optimizer)
 from garage.np import discount_cumsum
 from garage.torch import update_module_params
-from garage.torch._functions import np_to_torch, zero_optim_grads
 from garage.torch.optimizers import (ConjugateGradientOptimizer,
                                      DifferentiableSGD)
 
@@ -122,7 +121,7 @@ class MAML:
 
         meta_objective = self._compute_meta_loss(all_samples, all_params)
 
-        zero_optim_grads(self._meta_optimizer)
+        self._meta_optimizer.zero_grad()
         meta_objective.backward()
 
         self._meta_optimize(all_samples, all_params)
@@ -166,13 +165,12 @@ class MAML:
 
         obs = np.concatenate([path['observations'] for path in paths], axis=0)
         returns = np.concatenate([path['returns'] for path in paths])
-
-        obs = np_to_torch(obs)
-        returns = np_to_torch(returns.astype(np.float32))
+        obs = torch.Tensor(obs)
+        returns = torch.Tensor(returns)
 
         vf_loss = self._value_function.compute_loss(obs, returns)
         # pylint: disable=protected-access
-        zero_optim_grads(self._inner_algo._vf_optimizer._optimizer)
+        self._inner_algo._vf_optimizer.zero_grad()
         vf_loss.backward()
         # pylint: disable=protected-access
         self._inner_algo._vf_optimizer.step()
@@ -234,7 +232,7 @@ class MAML:
         loss = self._inner_algo._compute_loss(*batch_samples[1:])
 
         # Update policy parameters with one SGD step
-        self._inner_optimizer.set_grads_none()
+        self._inner_optimizer.zero_grad()
         loss.backward(create_graph=set_grad)
 
         with torch.set_grad_enabled(set_grad):
